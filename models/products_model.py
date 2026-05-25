@@ -9,9 +9,9 @@ class ProductsModel(QSqlTableModel):
         super().__init__(parent)
         self.setTable("products_view")
         self.select()  # Загружаем все данные
-        self.setHeaderData(0, 0, "ID")
-        self.setHeaderData(1, 0, "Артикул")
-        self.setHeaderData(2, 0, "Наименование")
+        self.setHeaderData(0, Qt.Orientation.Horizontal, "ID")
+        self.setHeaderData(1, Qt.Orientation.Horizontal, "Артикул")
+        self.setHeaderData(2, Qt.Orientation.Horizontal, "Наименование")
         # ... и так далее для всех колонок, которые вы хотите показать
 
     def data(self, index: QModelIndex, role: Qt.ItemDataRole):
