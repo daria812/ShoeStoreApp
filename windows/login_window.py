@@ -2,6 +2,8 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButt
 from PySide6.QtCore import Qt
 from database.db import Database
 from windows.main_window import MainWindow
+import os
+from PySide6.QtGui import QIcon
 
 class LoginWindow(QWidget):
     def __init__(self):
@@ -10,6 +12,15 @@ class LoginWindow(QWidget):
         self.setWindowTitle("Вход")
         self.resize(300, 200)
 
+        icon_path = os.path.join(os.path.dirname(__file__), "..", "images", "Icon.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+        else:
+            # Если нет .ico, можно взять .png
+            icon_path = os.path.join(os.path.dirname(__file__), "..", "images", "Icon.png")
+            if os.path.exists(icon_path):
+                self.setWindowIcon(QIcon(icon_path))
+
         layout = QVBoxLayout()
         layout.addWidget(QLabel("Логин:"))
         self.login_edit = QLineEdit()
@@ -17,7 +28,7 @@ class LoginWindow(QWidget):
 
         layout.addWidget(QLabel("Пароль:"))
         self.password_edit = QLineEdit()
-        self.password_edit.setEchoMode(QLineEdit.Password)
+        self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
         layout.addWidget(self.password_edit)
 
         btn_login = QPushButton("Войти")

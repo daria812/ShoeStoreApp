@@ -19,19 +19,27 @@ class Database:
         )
 
     def execute_query(self, query, params=None):
-
-        with self.conn.cursor() as cur:
-            cur.execute(query, params or ())
-            columns = [desc[0] for desc in cur.description]
-            rows = cur.fetchall()
-            return [dict(zip(columns, row)) for row in rows]
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(query, params or ())
+                columns = [desc[0] for desc in cur.description]
+                rows = cur.fetchall()
+                return [dict(zip(columns, row)) for row in rows]
+        except Exception as e:
+            self.conn.rollback()  # откатываем транзакцию
+            print(f"Ошибка запроса: {e}")
+            raise e
 
     def execute_non_query(self, query, params=None):
-
-        with self.conn.cursor() as cur:
-            cur.execute(query, params or ())
-            self.conn.commit()
-            return cur.rowcount
+        try:
+            with self.conn.cursor() as cur:
+                cur.execute(query, params or ())
+                self.conn.commit()
+                return cur.rowcount
+        except Exception as e:
+            self.conn.rollback()
+            print(f"Ошибка выполнения: {e}")
+            raise e
 
     def close(self):
         self.conn.close()

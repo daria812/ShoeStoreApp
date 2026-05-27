@@ -6,10 +6,12 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 from database.db import Database
+from customtkinter import set_appearance_mode
 
 class ProductDialog(QDialog):
     def __init__(self, product_id=None, parent=None):
         super().__init__(parent)
+        set_appearance_mode("light")
         self.product_id = product_id  # None для добавления, иначе редактирование
         self.db = Database.instance()
         self.setWindowTitle("Добавление товара" if product_id is None else "Редактирование товара")
@@ -151,7 +153,7 @@ class ProductDialog(QDialog):
         # Фото
         if p['image_path'] and os.path.exists(p['image_path']):
             pixmap = QPixmap(p['image_path'])
-            pixmap = pixmap.scaled(150, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pixmap = pixmap.scaled(150, 150, Qt.AspectRatioMode.KeepAspectRatio, Qt.SmoothTransformation)
             self.photo_label.setPixmap(pixmap)
             self.photo_path = p['image_path']
             self.photo_file_name = os.path.basename(p['image_path'])
@@ -162,7 +164,7 @@ class ProductDialog(QDialog):
             # Проверяем размеры (300x200)
             pixmap = QPixmap(file_path)
             if pixmap.width() > 300 or pixmap.height() > 200:
-                pixmap = pixmap.scaled(300, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                pixmap = pixmap.scaled(300, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.SmoothTransformation)
             # Сохраняем в папку images (создаём если нет)
             images_dir = "images"
             if not os.path.exists(images_dir):
@@ -173,10 +175,11 @@ class ProductDialog(QDialog):
             new_path = os.path.join(images_dir, new_name)
             shutil.copyfile(file_path, new_path)
             # Отображаем миниатюру
-            thumb = pixmap.scaled(150, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            thumb = pixmap.scaled(150, 150, Qt.AspectRatioMode.KeepAspectRatio, Qt.SmoothTransformation)
             self.photo_label.setPixmap(thumb)
             self.photo_path = new_path
             self.photo_file_name = new_name
+
 
     def accept(self):
         # Проверка обязательных полей

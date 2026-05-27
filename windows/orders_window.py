@@ -37,7 +37,7 @@ class OrdersWindow(QMainWindow):
         self.table.setColumnCount(8)
         self.table.setHorizontalHeaderLabels(["ID", "Номер заказа", "Клиент", "Статус",
                                               "Дата заказа", "Дата выдачи", "Адрес выдачи", "Код получения"])
-        self.table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         layout.addWidget(self.table)
 
         self.load_orders()
