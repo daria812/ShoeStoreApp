@@ -1,51 +1,69 @@
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                               QTableWidget, QTableWidgetItem, QPushButton, QMessageBox, QComboBox, QDateEdit,
-                               QDialog, QLabel, QLineEdit)
+                               QScrollArea, QLabel, QPushButton, QFrame,
+                               QComboBox, QDateEdit, QLineEdit, QMessageBox, QDialog)
 from PySide6.QtCore import Qt, QDate
 from database.db import Database
-
-
 
 class OrdersWindow(QMainWindow):
     def __init__(self, role, parent=None):
         super().__init__(parent)
         self.role = role
         self.db = Database.instance()
+        self.selected_order_id = None   # для хранения выбранного заказа
+        self.current_cards = []         # список карточек для сброса выделения
+
         self.setWindowTitle("Заказы")
-        self.resize(900, 500)
+        self.resize(900, 600)
 
         central = QWidget()
         self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
+        main_layout = QVBoxLayout(central)
 
-        # Кнопки управления (только для админа)
+        # Панель кнопок (только для администратора)
         if self.role == "admin":
             btn_layout = QHBoxLayout()
             self.btn_add = QPushButton("Добавить заказ")
+            self.btn_add.setStyleSheet("background-color: #00FA9A; padding: 6px;")
             self.btn_add.clicked.connect(self.add_order)
-            self.btn_edit = QPushButton("Редактировать заказ")
-            self.btn_edit.clicked.connect(self.edit_order)
-            self.btn_delete = QPushButton("Удалить заказ")
-            self.btn_delete.clicked.connect(self.delete_order)
             btn_layout.addWidget(self.btn_add)
-            btn_layout.addWidget(self.btn_edit)
-            btn_layout.addWidget(self.btn_delete)
-            layout.addLayout(btn_layout)
 
-        # Таблица заказов
-        self.table = QTableWidget()
-        self.table.setColumnCount(8)
-        self.table.setHorizontalHeaderLabels(["ID", "Номер заказа", "Клиент", "Статус",
-                                              "Дата заказа", "Дата выдачи", "Адрес выдачи", "Код получения"])
-        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        layout.addWidget(self.table)
+            self.btn_edit = QPushButton("Редактировать заказ")
+            self.btn_edit.setStyleSheet("background-color: #00FA9A; padding: 6px;")
+            self.btn_edit.clicked.connect(self.edit_selected_order)
+            btn_layout.addWidget(self.btn_edit)
+
+            self.btn_delete = QPushButton("Удалить заказ")
+            self.btn_delete.setStyleSheet("background-color: #FFA07A; padding: 6px;")
+            self.btn_delete.clicked.connect(self.delete_selected_order)
+            btn_layout.addWidget(self.btn_delete)
+
+            btn_layout.addStretch()
+            main_layout.addLayout(btn_layout)
+
+        # Прокручиваемая область для карточек заказов
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        scroll_widget = QWidget()
+        self.orders_layout = QVBoxLayout(scroll_widget)
+        self.orders_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.scroll_area.setWidget(scroll_widget)
+        main_layout.addWidget(self.scroll_area)
 
         self.load_orders()
 
     def load_orders(self):
+        # Очищаем старые карточки
+        while self.orders_layout.count():
+            item = self.orders_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self.current_cards.clear()
+        self.selected_order_id = None
+
         query = """
             SELECT o.id, o.order_number, u.full_name, os.name AS status,
-                   o.order_date, o.delivery_date, p.address, o.pickup_code
+                   o.order_date, o.delivery_date, p.address
             FROM orders o
             JOIN users u ON o.user_id = u.id
             JOIN order_statuses os ON o.order_status_id = os.id
@@ -53,42 +71,78 @@ class OrdersWindow(QMainWindow):
             ORDER BY o.order_date DESC
         """
         rows = self.db.execute_query(query)
-        self.table.setRowCount(len(rows))
-        for i, row in enumerate(rows):
-            self.table.setItem(i, 0, QTableWidgetItem(str(row['id'])))
-            self.table.setItem(i, 1, QTableWidgetItem(str(row['order_number'])))
-            self.table.setItem(i, 2, QTableWidgetItem(row['full_name']))
-            self.table.setItem(i, 3, QTableWidgetItem(row['status']))
-            self.table.setItem(i, 4, QTableWidgetItem(str(row['order_date']) if row['order_date'] else ''))
-            self.table.setItem(i, 5, QTableWidgetItem(str(row['delivery_date']) if row['delivery_date'] else ''))
-            self.table.setItem(i, 6, QTableWidgetItem(row['address'] or ''))
-            self.table.setItem(i, 7, QTableWidgetItem(row['pickup_code'] or ''))
+
+        for order in rows:
+            card = self.create_order_card(order)
+            self.orders_layout.addWidget(card)
+            self.current_cards.append((card, order['id']))
+
+    def create_order_card(self, order):
+        card = QFrame()
+        card.setFrameShape(QFrame.Shape.StyledPanel)
+        card.setStyleSheet("border: 1px solid #ccc; border-radius: 8px; padding: 8px; margin: 4px; background-color: #FFFFFF;")
+        main_layout = QHBoxLayout(card)
+
+        # Левая часть: информация о заказе (текст)
+        info_html = f"""
+        <b>Артикул заказа:</b> {order['order_number']}<br>
+        <b>Клиент:</b> {order['full_name']}<br>
+        <b>Статус:</b> {order['status']}<br>
+        <b>Дата заказа:</b> {order['order_date'] or '—'}<br>
+        <b>Адрес выдачи:</b> {order['address'] or '—'}
+        """
+        info_label = QLabel(info_html)
+        info_label.setWordWrap(True)
+        info_label.setTextFormat(Qt.TextFormat.RichText)
+        info_label.setStyleSheet("color: #000000;")
+        main_layout.addWidget(info_label, stretch=1)
+
+        # Правая часть: дата доставки (отдельный блок)
+        delivery_layout = QVBoxLayout()
+        delivery_label = QLabel(f"<b>Доставка<br>{order['delivery_date'] or '—'}</b>")
+        delivery_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        delivery_label.setStyleSheet("background-color: #7FFF00; border-radius: 8px; padding: 5px; font-size: 12px;")
+        delivery_layout.addWidget(delivery_label)
+        delivery_layout.addStretch()
+        main_layout.addWidget(delivery_label)
+
+        # Сделаем карточку кликабельной для выбора
+        card.mousePressEvent = lambda event, oid=order['id']: self.select_card(oid)
+
+        return card
+
+    def select_card(self, order_id):
+        # Сброс выделения всех карточек
+        for card, oid in self.current_cards:
+            card.setStyleSheet("border: 1px solid #ccc; border-radius: 8px; padding: 8px; margin: 4px; background-color: #FFFFFF;")
+        # Выделяем выбранную
+        for card, oid in self.current_cards:
+            if oid == order_id:
+                card.setStyleSheet("border: 2px solid #00FA9A; border-radius: 8px; padding: 8px; margin: 4px; background-color: #E0FFE0;")
+                break
+        self.selected_order_id = order_id
 
     def add_order(self):
         dialog = OrderDialog(parent=self)
         if dialog.exec():
             self.load_orders()
 
-    def edit_order(self):
-        selected = self.table.currentRow()
-        if selected < 0:
+    def edit_selected_order(self):
+        if self.selected_order_id is None:
             QMessageBox.warning(self, "Ошибка", "Выберите заказ для редактирования")
             return
-        order_id = int(self.table.item(selected, 0).text())
-        dialog = OrderDialog(order_id, self)
+        dialog = OrderDialog(self.selected_order_id, self)
         if dialog.exec():
             self.load_orders()
 
-    def delete_order(self):
-        selected = self.table.currentRow()
-        if selected < 0:
+    def delete_selected_order(self):
+        if self.selected_order_id is None:
             QMessageBox.warning(self, "Ошибка", "Выберите заказ для удаления")
             return
-        order_id = int(self.table.item(selected, 0).text())
-        reply = QMessageBox.question(self, "Подтверждение", "Удалить заказ? Все позиции заказа также будут удалены.",
-                                     QMessageBox.Yes | QMessageBox.No)
-        if reply == QMessageBox.Yes:
-            self.db.execute_non_query("DELETE FROM orders WHERE id = %s", (order_id,))
+        reply = QMessageBox.question(self, "Подтверждение", "Удалить заказ? Все его позиции также будут удалены.",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            self.db.execute_non_query("DELETE FROM orders WHERE id = %s", (self.selected_order_id,))
             self.load_orders()
 
 
@@ -102,14 +156,13 @@ class OrderDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        # Пользователь
-        layout.addWidget(QLabel("Клиент:"))
-        self.user_combo = QComboBox()
-        self.load_users()
-        layout.addWidget(self.user_combo)
+        # Артикул заказа (номер)
+        layout.addWidget(QLabel("Артикул заказа:"))
+        self.article_edit = QLineEdit()
+        layout.addWidget(self.article_edit)
 
         # Статус заказа
-        layout.addWidget(QLabel("Статус:"))
+        layout.addWidget(QLabel("Статус заказа:"))
         self.status_combo = QComboBox()
         self.load_statuses()
         layout.addWidget(self.status_combo)
@@ -127,17 +180,12 @@ class OrderDialog(QDialog):
         self.order_date_edit.setDate(QDate.currentDate())
         layout.addWidget(self.order_date_edit)
 
-        # Дата выдачи
-        layout.addWidget(QLabel("Дата выдачи:"))
+        # Дата доставки
+        layout.addWidget(QLabel("Дата доставки:"))
         self.delivery_date_edit = QDateEdit()
         self.delivery_date_edit.setCalendarPopup(True)
         self.delivery_date_edit.setDate(QDate.currentDate().addDays(7))
         layout.addWidget(self.delivery_date_edit)
-
-        # Код получения
-        layout.addWidget(QLabel("Код получения:"))
-        self.code_edit = QLineEdit()
-        layout.addWidget(self.code_edit)
 
         # Кнопки
         buttons = QHBoxLayout()
@@ -151,11 +199,6 @@ class OrderDialog(QDialog):
 
         if order_id:
             self.load_order_data()
-
-    def load_users(self):
-        rows = self.db.execute_query("SELECT id, full_name FROM users WHERE role IN ('client', 'manager', 'admin') ORDER BY full_name")
-        for row in rows:
-            self.user_combo.addItem(row['full_name'], row['id'])
 
     def load_statuses(self):
         rows = self.db.execute_query("SELECT id, name FROM order_statuses ORDER BY id")
@@ -173,9 +216,7 @@ class OrderDialog(QDialog):
         if not rows:
             return
         o = rows[0]
-        # Устанавливаем выбранные значения
-        idx = self.user_combo.findData(o['user_id'])
-        if idx >= 0: self.user_combo.setCurrentIndex(idx)
+        self.article_edit.setText(str(o['order_number']))
         idx = self.status_combo.findData(o['order_status_id'])
         if idx >= 0: self.status_combo.setCurrentIndex(idx)
         idx = self.pickup_combo.findData(o['pickup_point_id'])
@@ -184,31 +225,43 @@ class OrderDialog(QDialog):
             self.order_date_edit.setDate(QDate.fromString(str(o['order_date']), "yyyy-MM-dd"))
         if o['delivery_date']:
             self.delivery_date_edit.setDate(QDate.fromString(str(o['delivery_date']), "yyyy-MM-dd"))
-        self.code_edit.setText(o['pickup_code'] or "")
 
     def accept(self):
-        user_id = self.user_combo.currentData()
+        article = self.article_edit.text().strip()
+        if not article:
+            QMessageBox.warning(self, "Ошибка", "Артикул заказа обязателен")
+            return
+        try:
+            order_number = int(article)
+        except ValueError:
+            QMessageBox.warning(self, "Ошибка", "Артикул должен быть числом")
+            return
+
         status_id = self.status_combo.currentData()
         pickup_id = self.pickup_combo.currentData()
         order_date = self.order_date_edit.date().toString("yyyy-MM-dd")
         delivery_date = self.delivery_date_edit.date().toString("yyyy-MM-dd")
-        pickup_code = self.code_edit.text().strip()
 
         if self.order_id is None:
-            # Вставка – генерируем номер заказа (максимальный +1)
+            # При добавлении берём пользователя с ролью admin (id=1) или первого попавшегося
+            users = self.db.execute_query("SELECT id FROM users LIMIT 1")
+            user_id = users[0]['id'] if users else 1
             max_num = self.db.execute_query("SELECT COALESCE(MAX(order_number), 0) as max FROM orders")[0]['max']
-            order_number = max_num + 1
+            if order_number <= max_num:
+                QMessageBox.warning(self, "Ошибка", "Такой артикул заказа уже существует")
+                return
             query = """
-                INSERT INTO orders (order_number, user_id, order_status_id, order_date, delivery_date, pickup_point_id, pickup_code)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO orders (order_number, user_id, order_status_id, order_date, delivery_date, pickup_point_id)
+                VALUES (%s, %s, %s, %s, %s, %s)
             """
-            params = (order_number, user_id, status_id, order_date, delivery_date, pickup_id, pickup_code)
+            params = (order_number, user_id, status_id, order_date, delivery_date, pickup_id)
             self.db.execute_non_query(query, params)
         else:
             query = """
-                UPDATE orders SET user_id=%s, order_status_id=%s, order_date=%s, delivery_date=%s, pickup_point_id=%s, pickup_code=%s
+                UPDATE orders SET order_number=%s, order_status_id=%s, order_date=%s, delivery_date=%s, pickup_point_id=%s
                 WHERE id=%s
             """
-            params = (user_id, status_id, order_date, delivery_date, pickup_id, pickup_code, self.order_id)
+            params = (order_number, status_id, order_date, delivery_date, pickup_id, self.order_id)
             self.db.execute_non_query(query, params)
+
         super().accept()

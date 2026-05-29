@@ -1,17 +1,21 @@
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                               QScrollArea, QTableWidgetItem, QLabel, QLineEdit,
+                               QScrollArea, QLabel, QLineEdit,
                                QComboBox, QRadioButton, QPushButton, QFrame)
 from PySide6.QtCore import Qt
 from database.db import Database
 from PySide6.QtWidgets import QMessageBox
 import os
-from PySide6.QtGui import QPixmap, QColor, QIcon
+from PySide6.QtGui import QPixmap, QIcon
+from dialogs.product_dialog import ProductDialog
+
 class MainWindow(QMainWindow):
     def __init__(self, role, full_name):
         super().__init__()
         self.role = role
         self.full_name = full_name
         self.db = Database.instance()
+        self.orders_win = None
+        self.login_win = None
         self.setWindowTitle("Магазин обуви")
         self.resize(1000, 600)
         self.setStyleSheet("QMainWindow { background-color: #FFFFFF; }")
@@ -20,7 +24,6 @@ class MainWindow(QMainWindow):
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         else:
-            # Если нет .ico, можно взять .png
             icon_path = os.path.join(os.path.dirname(__file__), "..", "images", "Icon.png")
             if os.path.exists(icon_path):
                 self.setWindowIcon(QIcon(icon_path))
@@ -38,7 +41,7 @@ class MainWindow(QMainWindow):
         if os.path.exists(logo_path):
             logo_label = QLabel()
             pixmap = QPixmap(logo_path)
-            pixmap = pixmap.scaled(100, 50, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pixmap = pixmap.scaled(100, 50, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             logo_label.setPixmap(pixmap)
             top.addWidget(logo_label)
         else:
@@ -58,6 +61,17 @@ class MainWindow(QMainWindow):
 
             btn_orders.clicked.connect(self.open_orders)
             top.addWidget(btn_orders)
+
+        # Прокручиваемая область для карточек товаров
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        scroll_widget = QWidget()
+        scroll_widget.setStyleSheet("background-color: #FFFFFF;")
+        self.products_layout = QVBoxLayout(scroll_widget)
+        self.products_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.scroll_area.setWidget(scroll_widget)
+        main_layout.addWidget(self.scroll_area)
 
         # Панель фильтров (только для manager/admin)
         if self.role in ("manager", "admin"):
@@ -86,6 +100,7 @@ class MainWindow(QMainWindow):
             filter_layout.addWidget(self.sort_desc)
 
             main_layout.addWidget(filter_frame)
+            self.load_suppliers()
         else:
             # Для гостя и клиента фильтры не показываем, но атрибуты создаём пустыми
             self.search_edit = None
@@ -93,17 +108,6 @@ class MainWindow(QMainWindow):
             self.sort_asc = None
             self.sort_desc = None
 
-
-        # Прокручиваемая область для карточек товаров
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setFrameShape(QFrame.NoFrame)
-        scroll_widget = QWidget()
-        scroll_widget.setStyleSheet("background-color: #FFFFFF;")
-        self.products_layout = QVBoxLayout(scroll_widget)
-        self.products_layout.setAlignment(Qt.AlignTop)
-        self.scroll_area.setWidget(scroll_widget)
-        main_layout.addWidget(self.scroll_area)
 
         self.load_products()
         if self.role == "admin":
@@ -122,10 +126,10 @@ class MainWindow(QMainWindow):
             admin_buttons.addWidget(self.btn_delete)
             main_layout.addLayout(admin_buttons)
 
-
+    # noinspection PyMethodMayBeStatic
     def create_product_widget(self, product):
         card = QFrame()
-        card.setFrameShape(QFrame.StyledPanel)
+        card.setFrameShape(QFrame.Shape.StyledPanel)
         card.setStyleSheet("border: 1px solid #ccc; border-radius: 8px; padding: 8px; margin: 4px;")
         main_layout = QHBoxLayout(card)
 
@@ -133,16 +137,16 @@ class MainWindow(QMainWindow):
         photo_label = QLabel()
         photo_label.setFixedSize(120, 120)
         photo_label.setStyleSheet("border: 1px solid gray; background-color: #f0f0f0;")
-        photo_label.setAlignment(Qt.AlignCenter)
+        photo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         img_path = product.get('image_path')
         if img_path and os.path.exists(img_path):
             pix = QPixmap(img_path)
-            pix = pix.scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            pix = pix.scaled(120, 120, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             photo_label.setPixmap(pix)
         else:
             default_path = os.path.join(os.path.dirname(__file__), "..", "images", "picture.png")
             if os.path.exists(default_path):
-                pix = QPixmap(default_path).scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                pix = QPixmap(default_path).scaled(120, 120, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
                 photo_label.setPixmap(pix)
             else:
                 photo_label.setText("Нет фото")
@@ -169,7 +173,7 @@ class MainWindow(QMainWindow):
         """
         info_label = QLabel(html_text)
         info_label.setWordWrap(True)
-        info_label.setTextFormat(Qt.RichText)
+        info_label.setTextFormat(Qt.TextFormat.RichText)
 
         # Правая часть: информационный блок + отдельная ячейка для скидки
         right_layout = QHBoxLayout()
@@ -179,8 +183,7 @@ class MainWindow(QMainWindow):
 
         discount_layout = QVBoxLayout()
         discount_label = QLabel(f"<b>Скидка<br>{discount}%</b>")
-        discount_label.setAlignment(Qt.AlignCenter)
-        # Можно настроить стиль под ваш дизайн
+        discount_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         discount_layout.addWidget(discount_label)
         discount_layout.addStretch()
         right_layout.addWidget(discount_label)
@@ -221,8 +224,8 @@ class MainWindow(QMainWindow):
         if check and check[0]['cnt'] > 0:
             QMessageBox.warning(self, "Ошибка", "Товар присутствует в заказах, удаление невозможно")
             return
-        reply = QMessageBox.question(self, "Подтверждение", "Удалить товар?", QMessageBox.Yes | QMessageBox.No)
-        if reply == QMessageBox.Yes:
+        reply = QMessageBox.question(self, "Подтверждение", "Удалить товар?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
             # Удалить фото, если есть
             img = self.db.execute_query("SELECT image_path FROM products WHERE id=%s", (product_id,))
             if img and img[0]['image_path'] and os.path.exists(img[0]['image_path']):

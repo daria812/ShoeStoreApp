@@ -1,5 +1,4 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QMessageBox
-from PySide6.QtCore import Qt
 from database.db import Database
 from windows.main_window import MainWindow
 import os
@@ -9,6 +8,7 @@ class LoginWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.db = Database.instance()
+        self.main_window = None
         self.setWindowTitle("Вход")
         self.resize(300, 200)
 

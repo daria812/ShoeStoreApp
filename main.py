@@ -25,3 +25,8 @@ if __name__ == "__main__":
     """)
 
     sys.exit(app.exec())
+
+'''
+94d5ous@gmail.com
+uzWC67
+'''

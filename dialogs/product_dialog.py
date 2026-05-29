@@ -84,7 +84,7 @@ class ProductDialog(QDialog):
         self.photo_label = QLabel()
         self.photo_label.setFixedSize(150, 150)
         self.photo_label.setStyleSheet("border: 1px solid gray; background-color: #f0f0f0;")
-        self.photo_label.setAlignment(Qt.AlignCenter)
+        self.photo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.photo_label.setText("Нет фото")
         self.photo_path = None  # храним путь к файлу (относительный)
         self.photo_file_name = None  # имя файла
@@ -153,7 +153,7 @@ class ProductDialog(QDialog):
         # Фото
         if p['image_path'] and os.path.exists(p['image_path']):
             pixmap = QPixmap(p['image_path'])
-            pixmap = pixmap.scaled(150, 150, Qt.AspectRatioMode.KeepAspectRatio, Qt.SmoothTransformation)
+            pixmap = pixmap.scaled(150, 150, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             self.photo_label.setPixmap(pixmap)
             self.photo_path = p['image_path']
             self.photo_file_name = os.path.basename(p['image_path'])
@@ -164,7 +164,7 @@ class ProductDialog(QDialog):
             # Проверяем размеры (300x200)
             pixmap = QPixmap(file_path)
             if pixmap.width() > 300 or pixmap.height() > 200:
-                pixmap = pixmap.scaled(300, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.SmoothTransformation)
+                pixmap = pixmap.scaled(300, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             # Сохраняем в папку images (создаём если нет)
             images_dir = "images"
             if not os.path.exists(images_dir):
@@ -175,7 +175,7 @@ class ProductDialog(QDialog):
             new_path = os.path.join(images_dir, new_name)
             shutil.copyfile(file_path, new_path)
             # Отображаем миниатюру
-            thumb = pixmap.scaled(150, 150, Qt.AspectRatioMode.KeepAspectRatio, Qt.SmoothTransformation)
+            thumb = pixmap.scaled(150, 150, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             self.photo_label.setPixmap(thumb)
             self.photo_path = new_path
             self.photo_file_name = new_name
