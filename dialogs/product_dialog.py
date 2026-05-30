@@ -6,12 +6,10 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 from database.db import Database
-from customtkinter import set_appearance_mode
 
 class ProductDialog(QDialog):
     def __init__(self, product_id=None, parent=None):
         super().__init__(parent)
-        set_appearance_mode("light")
         self.product_id = product_id  # None для добавления, иначе редактирование
         self.db = Database.instance()
         self.setWindowTitle("Добавление товара" if product_id is None else "Редактирование товара")
